@@ -13,8 +13,13 @@ from db import SQLiteAdapter, ValidationError
 from init_db import create_database
 
 DB_PATH = Path(os.environ.get("LAB_DB_PATH", Path(__file__).resolve().parent / "lab.db"))
-create_database(DB_PATH)
-adapter = SQLiteAdapter(DB_PATH)
+_backend = os.environ.get("LAB_BACKEND", "sqlite").lower()
+if _backend == "postgres":
+    from pg import PostgresAdapter
+    adapter = PostgresAdapter(os.environ["LAB_PG_URL"])
+else:
+    create_database(DB_PATH)
+    adapter = SQLiteAdapter(DB_PATH)
 
 MAX_ROWS_RETURNED = 200
 MAX_RESPONSE_CHARS = int(os.environ.get("MCP_MAX_RESPONSE_CHARS", 80_000))
