@@ -16,6 +16,33 @@ DB_PATH = Path(os.environ.get("LAB_DB_PATH", Path(__file__).resolve().parent / "
 create_database(DB_PATH)
 adapter = SQLiteAdapter(DB_PATH)
 
+MAX_ROWS_RETURNED = 200
+MAX_RESPONSE_CHARS = int(os.environ.get("MCP_MAX_RESPONSE_CHARS", 80_000))
+
+
+def _with_output_hints(payload: dict[str, Any]) -> dict[str, Any]:
+    rows = payload.get("rows")
+    if isinstance(rows, list) and len(rows) > MAX_ROWS_RETURNED:
+        payload["rows"] = rows[:MAX_ROWS_RETURNED]
+        payload["truncated"] = True
+        payload["truncated_at"] = MAX_ROWS_RETURNED
+        payload["hint"] = (
+            f"Result truncated. Use 'limit' and 'offset' to paginate "
+            f"(MAX_LIMIT={MAX_ROWS_RETURNED})."
+        )
+    encoded = json.dumps(payload, default=str)
+    if len(encoded) > MAX_RESPONSE_CHARS:
+        return {
+            "table": payload.get("table"),
+            "truncated": True,
+            "hint": (
+                "Response exceeded character budget. Reduce 'limit' "
+                "or project fewer columns."
+            ),
+        }
+    return payload
+
+
 mcp = FastMCP("SQLite Lab MCP Server")
 
 
@@ -31,8 +58,9 @@ def _safe(call):
     name="search",
     description=(
         "Search rows in a table with optional filters, projection, ordering and pagination. "
-        "filters is a list of {column, op, value}. Supported ops: "
-        "eq, ne, lt, lte, gt, gte, like, in, is_null."
+        "filters is a list of {column, op, value}. Supported ops: eq, ne, lt, lte, gt, gte, "
+        "like, in, is_null. Use limit (default 20, max 500) and offset for pagination — "
+        "the response includes 'total_matching' and 'has_more'."
     ),
 )
 def search(
@@ -44,7 +72,7 @@ def search(
     order_by: str | None = None,
     descending: bool = False,
 ) -> dict[str, Any]:
-    return _safe(lambda: adapter.search(
+    return _with_output_hints(_safe(lambda: adapter.search(
         table,
         columns=columns,
         filters=filters,
@@ -52,7 +80,7 @@ def search(
         offset=offset,
         order_by=order_by,
         descending=descending,
-    ))
+    )))
 
 
 @mcp.tool(
@@ -60,7 +88,7 @@ def search(
     description="Insert a row into a table. values is a {column: value} mapping; returns the inserted row.",
 )
 def insert(table: str, values: dict[str, Any]) -> dict[str, Any]:
-    return _safe(lambda: adapter.insert(table, values))
+    return _with_output_hints(_safe(lambda: adapter.insert(table, values)))
 
 
 @mcp.tool(
@@ -77,13 +105,13 @@ def aggregate(
     filters: list[dict[str, Any]] | None = None,
     group_by: str | None = None,
 ) -> dict[str, Any]:
-    return _safe(lambda: adapter.aggregate(
+    return _with_output_hints(_safe(lambda: adapter.aggregate(
         table,
         metric=metric,
         column=column,
         filters=filters,
         group_by=group_by,
-    ))
+    )))
 
 
 @mcp.resource(

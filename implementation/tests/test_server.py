@@ -100,3 +100,14 @@ def test_read_table_schema_template(server_module):
     payload = json.loads(contents[0].text)
     assert payload["table"] == "students"
     assert any(col["name"] == "cohort" for col in payload["columns"])
+
+
+def test_search_response_includes_pagination_metadata(server_module):
+    async def go():
+        async with Client(server_module.mcp) as c:
+            return await c.call_tool("search", {"table": "students", "limit": 2})
+    result = _run(go())
+    payload = _payload(result)
+    if isinstance(payload, dict) and "result" in payload and isinstance(payload["result"], dict):
+        payload = payload["result"]
+    assert {"limit", "offset", "total_matching", "has_more"} <= payload.keys()
