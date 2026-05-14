@@ -111,6 +111,14 @@ class SQLiteAdapter:
     ) -> dict[str, Any]:
         self._validate_table(table)
 
+        # pagination (validate inputs before building any SQL)
+        if not isinstance(limit, int) or limit < 1:
+            raise ValidationError("limit must be a positive integer.")
+        if limit > MAX_LIMIT:
+            raise ValidationError(f"limit cannot exceed {MAX_LIMIT}.")
+        if not isinstance(offset, int) or offset < 0:
+            raise ValidationError("offset must be a non-negative integer.")
+
         # column projection
         if columns:
             self._validate_columns(table, columns)
@@ -126,14 +134,6 @@ class SQLiteAdapter:
         if order_by is not None:
             self._validate_columns(table, [order_by])
             order_sql = f" ORDER BY {order_by} {'DESC' if descending else 'ASC'}"
-
-        # pagination
-        if not isinstance(limit, int) or limit < 1:
-            raise ValidationError("limit must be a positive integer.")
-        if limit > MAX_LIMIT:
-            raise ValidationError(f"limit cannot exceed {MAX_LIMIT}.")
-        if not isinstance(offset, int) or offset < 0:
-            raise ValidationError("offset must be a non-negative integer.")
 
         sql = f"SELECT {projection} FROM {table}{where_sql}{order_sql} LIMIT ? OFFSET ?"
         bound = (*params, limit, offset)
@@ -237,9 +237,9 @@ class SQLiteAdapter:
         func = SUPPORTED_METRICS[metric]
 
         if metric == "count":
-            metric_expr = "COUNT(*)" if column is None else f"COUNT({column})"
             if column is not None:
                 self._validate_columns(table, [column])
+            metric_expr = "COUNT(*)" if column is None else f"COUNT({column})"
         else:
             if column is None:
                 raise ValidationError(f"Metric {metric!r} requires a 'column'.")
