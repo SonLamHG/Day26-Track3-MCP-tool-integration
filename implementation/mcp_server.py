@@ -152,12 +152,39 @@ def _main() -> None:
     parser.add_argument("--transport", choices=["stdio", "http", "sse"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--auth-token",
+        default=os.environ.get("MCP_AUTH_TOKEN"),
+        help="Required bearer token for http/sse transports. Reads MCP_AUTH_TOKEN env var by default.",
+    )
     args = parser.parse_args()
 
     if args.transport == "stdio":
         mcp.run()
-    else:
-        mcp.run(transport=args.transport, host=args.host, port=args.port)
+        return
+
+    if not args.auth_token:
+        raise SystemExit("--auth-token (or MCP_AUTH_TOKEN) is required for http/sse transports.")
+
+    from starlette.middleware import Middleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    expected_token = args.auth_token
+
+    class BearerAuth(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            header = request.headers.get("authorization", "")
+            if header != f"Bearer {expected_token}":
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+    mcp.run(
+        transport=args.transport,
+        host=args.host,
+        port=args.port,
+        middleware=[Middleware(BearerAuth)],
+    )
 
 
 if __name__ == "__main__":

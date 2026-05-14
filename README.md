@@ -227,6 +227,15 @@ Stdio transport is the default. The server is ready when it stops printing initi
 
 (macOS/Linux: `./implementation/start_inspector.sh`.) Inspector opens a browser UI where you can see tool schemas, call them, and read resources.
 
+### Optional: HTTP transport with bearer auth (bonus)
+
+```powershell
+$env:MCP_AUTH_TOKEN = "dev-token"
+.\.venv\Scripts\python.exe implementation\mcp_server.py --transport http --port 8765
+```
+
+The server rejects any request that doesn't carry `Authorization: Bearer $MCP_AUTH_TOKEN` with HTTP 401. Set `LAB_BACKEND=postgres` and `LAB_PG_URL=postgres://...` to point the same MCP surface at PostgreSQL instead of SQLite (bonus).
+
 ## Implementation: Tool Reference
 
 ### `search(table, columns?, filters?, limit=20, offset=0, order_by?, descending=false)`
