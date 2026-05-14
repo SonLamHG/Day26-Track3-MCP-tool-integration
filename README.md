@@ -179,3 +179,88 @@ Optional bonus:
 - add authentication for SSE or HTTP transport
 - support both SQLite and PostgreSQL with the same MCP surface
 - add richer output annotations or pagination
+
+---
+
+## Implementation: Setup & Run
+
+### 1. Install
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r implementation/requirements.txt
+```
+
+(`py -3.11` may be replaced with any Python 3.10+ interpreter — adjust the activate path on macOS/Linux to `.venv/bin/activate`.)
+
+### 2. Initialize the database
+
+```powershell
+.\.venv\Scripts\python.exe implementation\init_db.py
+```
+
+Creates `implementation/lab.db` with `students`, `courses`, `enrollments` tables and seed rows. The script is idempotent — running it twice is safe.
+
+### 3. Run the FastMCP server (stdio)
+
+```powershell
+.\.venv\Scripts\python.exe implementation\mcp_server.py
+```
+
+Stdio transport is the default. The server is ready when it stops printing initialization messages and starts waiting on stdin.
+
+### 4. Verify end-to-end
+
+```powershell
+.\.venv\Scripts\python.exe implementation\verify_server.py
+.\.venv\Scripts\python.exe -m pytest implementation\tests -v
+```
+
+`verify_server.py` exercises tool discovery, three successful tool calls, two resource reads, and two intentional error paths — printing a `[OK]` line for each. `pytest` runs the 20-test suite (13 adapter tests + 7 server tests) with an isolated tmp DB per test.
+
+### 5. Inspect with MCP Inspector
+
+```powershell
+./implementation/start_inspector.ps1
+```
+
+(macOS/Linux: `./implementation/start_inspector.sh`.) Inspector opens a browser UI where you can see tool schemas, call them, and read resources.
+
+## Implementation: Tool Reference
+
+### `search(table, columns?, filters?, limit=20, offset=0, order_by?, descending=false)`
+
+- `filters`: list of `{column, op, value}`. Supported `op`s: `eq, ne, lt, lte, gt, gte, like, in, is_null`. `is_null` takes no `value`; `in` takes a list.
+- `limit` is capped at 500; `offset` must be non-negative.
+- Returns `{table, rows, count, total_matching, limit, offset, has_more}`.
+
+### `insert(table, values)`
+
+- `values`: non-empty `{column: value}` mapping. Empty maps are rejected.
+- Returns `{table, inserted_id, row}` where `row` is the freshly inserted record (including auto-generated `id`).
+
+### `aggregate(table, metric, column?, filters?, group_by?)`
+
+- `metric`: one of `count, sum, avg, min, max`. All except `count` require `column`.
+- Optional `filters` (same shape as `search`) and `group_by`.
+- Returns `{table, metric, column, group_by, rows}`.
+
+## Implementation: Resources
+
+- **`schema://database`** — full JSON snapshot of every non-internal table in the database.
+- **`schema://table/{table_name}`** — schema for a single table, addressed by name (e.g. `schema://table/students`).
+
+## Implementation: Client Configuration
+
+Pick one of the examples in `implementation/` and replace the `REPLACE_WITH_ABSOLUTE_*` placeholders with the real paths on your machine:
+
+- **Claude Code:** copy `implementation/.mcp.json.example` to `.mcp.json` at the repo root. A pre-filled `.mcp.json` is already present for the original author's environment — adjust paths as needed.
+- **Codex:** merge `implementation/codex_config.example.toml` into `~/.codex/config.toml`.
+- **Gemini CLI:** prefer `gemini mcp add sqlite-lab <python> <abs path>/implementation/mcp_server.py --description "SQLite lab FastMCP server" --timeout 10000`; or use `implementation/gemini_settings.example.json`.
+
+After configuring, reload your client (Claude Code: `/mcp`; Gemini: `gemini mcp list`) to confirm `sqlite-lab` shows as Connected.
+
+## Implementation: Demo
+
+See [DEMO.md](DEMO.md) for the 2-minute video walkthrough script.

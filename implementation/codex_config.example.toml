@@ -1,0 +1,3 @@
+[mcp_servers.sqlite_lab]
+command = "REPLACE_WITH_ABSOLUTE_PYTHON_PATH"
+args = ["REPLACE_WITH_ABSOLUTE_PATH/implementation/mcp_server.py"]

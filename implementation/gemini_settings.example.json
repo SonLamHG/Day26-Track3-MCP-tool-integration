@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "sqlite-lab": {
+      "command": "REPLACE_WITH_ABSOLUTE_PYTHON_PATH",
+      "args": ["REPLACE_WITH_ABSOLUTE_PATH/implementation/mcp_server.py"],
+      "cwd": "REPLACE_WITH_ABSOLUTE_PATH/implementation",
+      "timeout": 10000,
+      "trust": false
+    }
+  }
+}
